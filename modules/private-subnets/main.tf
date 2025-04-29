@@ -1,14 +1,4 @@
-# Fetch VPC ID based on its Name tag
-data "aws_vpcs" "filtered_vpcs" {
-  filter {
-    name   = "tag:Name"
-    values = [var.vpc_name]
-  }
-}
 
-data "aws_vpc" "selected" {
-  id = data.aws_vpcs.filtered_vpcs.ids[0]
-}
 
 # Local values to calculate newbits and ensure safe subnet indexing
 locals {
@@ -22,6 +12,9 @@ locals {
 
   # Validate that we don't exceed the subnet limit
   valid_indexes = [for i in local.private_subnet_indexes : i if i < local.max_subnets]
+
+  # AZ suffixes
+  az_suffixes = ["a", "b", "c"]
 }
 
 # Create private /27 subnets in 3 AZs
@@ -32,6 +25,63 @@ resource "aws_subnet" "private" {
   availability_zone = element(["eu-west-2a", "eu-west-2b", "eu-west-2c"], count.index)
 
   tags = merge({
-    Name = "${var.vpc_name}-private-main-subnet-${element(["a", "b", "c"], count.index)}"
+    Name                                             = "${var.vpc_name}-private-main-${element(local.az_suffixes, count.index)}"
+    "kubernetes.io/cluster/${var.eks_cluster1_name}" = "owned"
+    "kubernetes.io/cluster/${var.eks_cluster2_name}" = "owned"
+    "kubernetes.io/role/internal-elb"                = "1"
   }, var.tags)
 }
+
+# Convert subnet list to map for for_each compatibility
+locals {
+  subnet_map = { for idx, subnet in aws_subnet.private : idx => subnet }
+}
+
+# Create route table per subnet
+resource "aws_route_table" "main_private_subnet_route_tables" {
+  for_each = local.subnet_map
+
+  vpc_id = data.aws_vpc.selected.id
+
+  route {
+    cidr_block         = "0.0.0.0/0"
+    transit_gateway_id = var.tgw_id
+  }
+
+  tags = {
+    Name = "${var.vpc_name}-private-main-${element(local.az_suffixes, tonumber(each.key))}"
+  }
+}
+
+# Associate each subnet with its route table
+resource "aws_route_table_association" "main_private_subnets_association" {
+  for_each       = local.subnet_map
+  subnet_id      = each.value.id
+  route_table_id = aws_route_table.main_private_subnet_route_tables[each.key].id
+}
+
+# Associate private route tables with S3 VPC endpoint
+resource "aws_vpc_endpoint_route_table_association" "main_private_subnets_private_s3" {
+  for_each        = local.subnet_map
+  vpc_endpoint_id = data.aws_vpc_endpoint.s3.id
+  route_table_id  = aws_route_table.main_private_subnet_route_tables[each.key].id
+}
+
+# Associate private route tables with DynamoDB VPC endpoint
+resource "aws_vpc_endpoint_route_table_association" "main_private_subnets_private_dynamodb" {
+  for_each        = local.subnet_map
+  vpc_endpoint_id = data.aws_vpc_endpoint.dynamodb.id
+  route_table_id  = aws_route_table.main_private_subnet_route_tables[each.key].id
+}
+
+# Private NAT Gateways
+
+resource "aws_nat_gateway" "private_nat_gw" {
+  for_each          = local.subnet_map
+  connectivity_type = "private"
+  subnet_id         = each.value.id
+  tags = {
+    Name = "${var.vpc_name}-private-main-${element(local.az_suffixes, tonumber(each.key))}"
+  }
+}
+
