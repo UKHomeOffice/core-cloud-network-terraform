@@ -1,5 +1,3 @@
-
-
 # Local values to calculate newbits and ensure safe subnet indexing
 locals {
   vpc_cidr_block     = data.aws_vpc.selected.cidr_block
@@ -25,10 +23,12 @@ resource "aws_subnet" "private" {
   availability_zone = element(["eu-west-2a", "eu-west-2b", "eu-west-2c"], count.index)
 
   tags = merge({
-    Name                                             = "${var.vpc_name}-private-main-${element(local.az_suffixes, count.index)}"
-    "kubernetes.io/cluster/${var.eks_cluster1_name}" = "owned"
-    "kubernetes.io/cluster/${var.eks_cluster2_name}" = "owned"
-    "kubernetes.io/role/internal-elb"                = "1"
+    Name = "${var.vpc_name}-private-main-${element(local.az_suffixes, count.index)}"
+    },
+    var.eks_cluster1_name != "" ? { "kubernetes.io/cluster/${var.eks_cluster1_name}" = "owned" } : null,
+    var.eks_cluster2_name != "" ? { "kubernetes.io/cluster/${var.eks_cluster2_name}" = "owned" } : null,
+    {
+      "kubernetes.io/role/internal-elb" = "1"
   }, var.tags)
 }
 
@@ -84,4 +84,3 @@ resource "aws_nat_gateway" "private_nat_gw" {
     Name = "${var.vpc_name}-private-main-${element(local.az_suffixes, tonumber(each.key))}"
   }
 }
-
