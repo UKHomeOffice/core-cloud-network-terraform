@@ -23,3 +23,9 @@ variable "tgw_id" {
   description = "TGW Id"
   type        = string
 }
+
+variable "tag_vpc_name" {
+  description = "Sets the value of a tag called VpcName on the VPC"
+  type        = string
+  default     = ""
+}
