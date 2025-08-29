@@ -14,7 +14,7 @@ locals {
   # AZ suffixes
   az_suffixes = ["a", "b", "c"]
 
-  tag_vpc_name = trim(var.tag_vpc_name, " ") # Optional: Set a custom VpcName tag on the VPC if needed
+  tag_vpc_name = trim(var.tag_vpc_name, " ")
 }
 # Create private /27 subnets in 3 AZs
 resource "aws_subnet" "private" {
