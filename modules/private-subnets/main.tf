@@ -13,8 +13,9 @@ locals {
 
   # AZ suffixes
   az_suffixes = ["a", "b", "c"]
-}
 
+  tag_vpc_name = trim(var.tag_vpc_name, " ")
+}
 # Create private /27 subnets in 3 AZs
 resource "aws_subnet" "private" {
   count             = length(local.valid_indexes)
@@ -30,6 +31,13 @@ resource "aws_subnet" "private" {
     {
       "kubernetes.io/role/internal-elb" = "1"
   }, var.tags)
+}
+
+resource "aws_ec2_tag" "tag-vpc-name" {
+  count       = local.tag_vpc_name == "" ? 0 : 1
+  resource_id = data.aws_vpc.selected.id
+  key         = "VpcName"
+  value       = local.tag_vpc_name
 }
 
 # Convert subnet list to map for for_each compatibility
