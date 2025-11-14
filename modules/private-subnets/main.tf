@@ -33,7 +33,7 @@ resource "aws_subnet" "private" {
   }, var.tags)
 
   lifecycle {
-    ignore_changes = [tags["kubernetes.io/cluster/foo"]]
+    ignore_changes = [tags["kubernetes.io/cluster/"]]
   }
 }
 
