@@ -31,6 +31,10 @@ resource "aws_subnet" "private" {
     {
       "kubernetes.io/role/internal-elb" = "1"
   }, var.tags)
+
+  lifecycle {
+    ignore_changes = [tags["kubernetes.io/cluster/"]]
+  }
 }
 
 resource "aws_ec2_tag" "tag-vpc-name" {
